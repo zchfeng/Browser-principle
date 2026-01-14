@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JavaScript 尾递归解释</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+      color: #333;
+      min-height: 100vh;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 1000px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 15px;
+      padding: 30px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      margin-top: 20px;
+    }
+
+    h1 {
+      color: #2575fc;
+      text-align: center;
+      margin-bottom: 20px;
+      font-size: 2.5rem;
+    }
+
+    h2 {
+      color: #6a11cb;
+      margin: 25px 0 15px;
+      border-bottom: 2px solid #6a11cb;
+      padding-bottom: 8px;
+    }
+
+    p {
+      line-height: 1.6;
+      margin-bottom: 15px;
+      font-size: 1.1rem;
+    }
+
+    .code-container {
+      background: #2d2d2d;
+      color: #f8f8f2;
+      border-radius: 8px;
+      padding: 20px;
+      margin: 20px 0;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Monaco', monospace;
+    }
+
+    .code-comment {
+      color: #75715e;
+    }
+
+    .code-keyword {
+      color: #f92672;
+    }
+
+    .code-function {
+      color: #e6db74;
+    }
+
+    .code-param {
+      color: #fd971f;
+    }
+
+    .code-number {
+      color: #ae81ff;
+    }
+
+    .comparison {
+      display: flex;
+      gap: 20px;
+      margin: 30px 0;
+    }
+
+    .normal-recursion,
+    .tail-recursion {
+      flex: 1;
+      padding: 20px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .visualization {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      margin: 20px 0;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .stack-visual {
+      height: 300px;
+      border: 2px solid #2575fc;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column-reverse;
+    }
+
+    .stack-frame {
+      background: #6a11cb;
+      color: white;
+      margin: 2px;
+      padding: 10px;
+      text-align: center;
+      border-radius: 4px;
+      transition: all 0.5s ease;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    button {
+      padding: 12px 25px;
+      background: #2575fc;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: bold;
+      transition: all 0.3s ease;
+    }
+
+    button:hover {
+      background: #6a11cb;
+      transform: translateY(-2px);
+    }
+
+    input {
+      padding: 12px;
+      border: 2px solid #2575fc;
+      border-radius: 8px;
+      font-size: 1rem;
+      width: 80px;
+      text-align: center;
+    }
+
+    .explanation {
+      background: #e3f2fd;
+      padding: 20px;
+      border-left: 5px solid #2575fc;
+      border-radius: 4px;
+      margin: 20px 0;
+    }
+
+    .important {
+      color: #d32f2f;
+      font-weight: bold;
+    }
+
+    @media (max-width: 768px) {
+      .comparison {
+        flex-direction: column;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>JavaScript 尾递归解释</h1>
+
+  <div class="container">
+    <h2>什么是尾递归？</h2>
+    <p>尾递归是一种特殊的递归形式，其中递归调用是函数中的最后一个操作。这意味着在递归调用返回后，当前函数不再需要执行任何额外的计算。</p>
+
+    <div class="explanation">
+      <p>尾递归的重要性在于它可以被编译器或解释器优化，避免递归调用导致栈溢出错误。这种优化称为"尾调用优化"(TCO)。</p>
+      <p class="important">注意：虽然ES6标准包含了尾调用优化，但截至2023年，大多数JavaScript引擎仍未实现这一特性。</p>
+    </div>
+
+    <h2>普通递归 vs 尾递归</h2>
+    <div class="comparison">
+      <div class="normal-recursion">
+        <h3>普通递归</h3>
+        <div class="code-container">
+          <pre><span class="code-keyword">function</span> <span class="code-function">factorial</span>(<span class="code-param">n</span>) {
+  <span class="code-keyword">if</span> (n === <span class="code-number">1</span>) <span class="code-keyword">return</span> <span class="code-number">1</span>;
+  <span class="code-keyword">return</span> n * <span class="code-function">factorial</span>(n - <span class="code-number">1</span>); <span class="code-comment">// 需要等待递归结果再进行乘法</span>
+}</pre>
+        </div>
+        <p>普通递归在每次递归调用时，当前函数的上下文必须保留在调用栈中，直到递归完成。</p>
+      </div>
+
+      <div class="tail-recursion">
+        <h3>尾递归</h3>
+        <div class="code-container">
+          <pre><span class="code-keyword">function</span> <span class="code-function">factorialTail</span>(<span class="code-param">n</span>, <span class="code-param">acc</span> = <span class="code-number">1</span>) {
+  <span class="code-keyword">if</span> (n === <span class="code-number">1</span>) <span class="code-keyword">return</span> acc;
+  <span class="code-keyword">return</span> <span class="code-function">factorialTail</span>(n - <span class="code-number">1</span>, n * acc); <span class="code-comment">// 递归调用是最后操作</span>
+}</pre>
+        </div>
+        <p>尾递归在递归调用后没有其他操作，因此当前函数的栈帧可以被重用，不会增加调用栈的深度。</p>
+      </div>
+    </div>
+
+    <h2>递归调用栈可视化</h2>
+    <div class="visualization">
+      <p>输入一个数字并选择递归类型，查看调用栈的不同行为：</p>
+
+      <div class="controls">
+        <input type="number" id="numberInput" min="1" max="10" value="5">
+        <button onclick="runNormalRecursion()">运行普通递归</button>
+        <button onclick="runTailRecursion()">运行尾递归</button>
+        <button onclick="resetVisualization()">重置</button>
+      </div>
+
+      <div class="stack-visual" id="stackVisual">
+        <div class="stack-frame">调用栈初始状态</div>
+      </div>
+
+      <div id="resultOutput" style="margin-top: 20px; font-weight: bold;"></div>
+    </div>
+
+    <h2>为什么尾递归重要？</h2>
+    <p>1. <strong>空间效率</strong>：尾递归优化可以将递归的空间复杂度从O(n)降低到O(1)。</p>
+    <p>2. <strong>避免栈溢出</strong>：对于深度递归，尾递归可以避免调用栈超出限制。</p>
+    <p>3. <strong>函数式编程</strong>：尾递归使递归可以安全地替代循环，符合函数式编程范式。</p>
+
+    <h2>使用尾递归的注意事项</h2>
+    <p>1. 确保递归调用确实是函数中的最后一个操作。</p>
+    <p>2. 使用累加器参数来传递中间结果。</p>
+    <p>3. 注意JavaScript引擎对尾调用优化的支持情况。</p>
+  </div>
+
+  <script>
+    const stackVisual = document.getElementById('stackVisual');
+    const resultOutput = document.getElementById('resultOutput');
+    const numberInput = document.getElementById('numberInput');
+    let stackFrames = [];
+
+    function runNormalRecursion() {
+      resetVisualization();
+      const n = parseInt(numberInput.value);
+      if (n > 10) {
+        resultOutput.textContent = "为了演示安全，请输入小于等于10的数字";
+        return;
+      }
+
+      resultOutput.textContent = "";
+      simulateNormalRecursion(n);
+    }
+
+    function runTailRecursion() {
+      resetVisualization();
+      const n = parseInt(numberInput.value);
+      if (n > 10) {
+        resultOutput.textContent = "为了演示安全，请输入小于等于10的数字";
+        return;
+      }
+
+      resultOutput.textContent = "";
+      simulateTailRecursion(n, 1);
+    }
+
+    function simulateNormalRecursion(n) {
+      if (n < 1) return;
+
+      // 添加栈帧
+      const frame = document.createElement('div');
+      frame.className = 'stack-frame';
+      frame.textContent = `factorial(${n})`;
+      stackVisual.appendChild(frame);
+      stackFrames.push(frame);
+
+      if (n === 1) {
+        setTimeout(() => {
+          resultOutput.textContent = `计算结果: 1`;
+          // 开始逐步弹出栈帧
+          setTimeout(() => popStackFrames(6), 1000);
+        }, 800);
+        return;
+      }
+
+      setTimeout(() => {
+        simulateNormalRecursion(n - 1);
+      }, 800);
+    }
+
+    function simulateTailRecursion(n, acc) {
+      if (n < 1) return;
+
+      // 添加栈帧 - 但在尾递归中理论上会被重用
+      const frame = document.createElement('div');
+      frame.className = 'stack-frame';
+      frame.textContent = `factorialTail(${n}, ${acc})`;
+
+      // 如果是第一次调用，直接添加
+      if (stackFrames.length === 0) {
+        stackVisual.appendChild(frame);
+      } else {
+        // 模拟重用栈帧 - 替换最顶部的帧
+        stackVisual.replaceChild(frame, stackFrames[stackFrames.length - 1]);
+      }
+
+      stackFrames.push(frame);
+
+      if (n === 1) {
+        setTimeout(() => {
+          resultOutput.textContent = `计算结果: ${acc}`;
+          // 尾递归优化后，只需要弹出一次
+          setTimeout(() => {
+            if (stackFrames.length > 0) {
+              stackVisual.removeChild(stackFrames.pop());
+            }
+          }, 1000);
+        }, 800);
+        return;
+      }
+
+      setTimeout(() => {
+        simulateTailRecursion(n - 1, n * acc);
+      }, 800);
+    }
+
+    function popStackFrames(times) {
+      if (times <= 0 || stackFrames.length === 0) return;
+
+      stackVisual.removeChild(stackFrames.pop());
+
+      setTimeout(() => {
+        popStackFrames(times - 1);
+      }, 400);
+    }
+
+    function resetVisualization() {
+      while (stackVisual.firstChild) {
+        stackVisual.removeChild(stackVisual.firstChild);
+      }
+
+      const initialFrame = document.createElement('div');
+      initialFrame.className = 'stack-frame';
+      initialFrame.textContent = '调用栈初始状态';
+      stackVisual.appendChild(initialFrame);
+
+      stackFrames = [];
+      resultOutput.textContent = "";
+    }
+
+    // 初始化
+    resetVisualization();
+  </script>
+</body>
+
+</html>
